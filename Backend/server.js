@@ -5,6 +5,7 @@ require("dotenv").config();
 const pool = require("./config/db");
 const userRoutes = require("./routes/userRoutes");
 const authRoutes = require("./routes/authRoutes");
+const productRoutes = require("./routes/ProductRoutes");
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.get("/test", (req, res) => {
 });
 app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/products", productRoutes);
 app.listen(PORT, () => {
     console.log(`KickKart API running on port ${PORT}`);
 });
