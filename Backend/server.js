@@ -6,6 +6,7 @@ const pool = require("./config/db");
 const userRoutes = require("./routes/userRoutes");
 const authRoutes = require("./routes/authRoutes");
 const productRoutes = require("./routes/ProductRoutes");
+const categoryRoutes = require("./routes/categoryRoutes");
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.get("/test", (req, res) => {
 app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
+app.use("/api/categories", categoryRoutes);
 app.listen(PORT, () => {
     console.log(`KickKart API running on port ${PORT}`);
 });
