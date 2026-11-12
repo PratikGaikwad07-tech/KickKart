@@ -1,16 +1,169 @@
+
 const db = require("../config/db");
 
-// GET ALL PRODUCTS
+// ==========================================
+// GET PRODUCTS WITH SEARCH, FILTER, SORT
+// AND PAGINATION
+// ==========================================
 const getProducts = async (req, res) => {
   try {
-    const [products] = await db.query(
-      "SELECT * FROM products"
+    const {
+      search,
+      category_id,
+      min_price,
+      max_price,
+      season,
+      sort_by = "created_at",
+      sort_order = "DESC",
+      page = 1,
+      limit = 10
+    } = req.query;
+
+    const conditions = [];
+    const values = [];
+
+    // SEARCH BY PRODUCT NAME OR TEAM
+    if (search && search.trim()) {
+      conditions.push("(p.name LIKE ? OR p.team LIKE ?)");
+      values.push(`%${search.trim()}%`, `%${search.trim()}%`);
+    }
+
+    // CATEGORY FILTER
+    if (category_id !== undefined) {
+      const categoryId = Number(category_id);
+
+      if (!Number.isInteger(categoryId) || categoryId <= 0) {
+        return res.status(400).json({
+          message: "Invalid category_id"
+        });
+      }
+
+      conditions.push("p.category_id = ?");
+      values.push(categoryId);
+    }
+
+    // MINIMUM PRICE FILTER
+    if (min_price !== undefined) {
+      const minPrice = Number(min_price);
+
+      if (!Number.isFinite(minPrice) || minPrice < 0) {
+        return res.status(400).json({
+          message: "Invalid minimum price"
+        });
+      }
+
+      conditions.push("p.price >= ?");
+      values.push(minPrice);
+    }
+
+    // MAXIMUM PRICE FILTER
+    if (max_price !== undefined) {
+      const maxPrice = Number(max_price);
+
+      if (!Number.isFinite(maxPrice) || maxPrice < 0) {
+        return res.status(400).json({
+          message: "Invalid maximum price"
+        });
+      }
+
+      conditions.push("p.price <= ?");
+      values.push(maxPrice);
+    }
+
+    // VALIDATE PRICE RANGE
+    if (
+      min_price !== undefined &&
+      max_price !== undefined &&
+      Number(min_price) > Number(max_price)
+    ) {
+      return res.status(400).json({
+        message: "Minimum price cannot exceed maximum price"
+      });
+    }
+
+    // SEASON FILTER
+    if (season && season.trim()) {
+      conditions.push("p.season = ?");
+      values.push(season.trim());
+    }
+
+    const whereClause = conditions.length
+      ? `WHERE ${conditions.join(" AND ")}`
+      : "";
+
+    // SORTING VALIDATION
+    const allowedSortColumns = [
+      "name",
+      "price",
+      "created_at"
+    ];
+
+    if (!allowedSortColumns.includes(sort_by)) {
+      return res.status(400).json({
+        message: "Invalid sort_by value"
+      });
+    }
+
+    const sortDirection = sort_order.toUpperCase();
+
+    if (!["ASC", "DESC"].includes(sortDirection)) {
+      return res.status(400).json({
+        message: "sort_order must be ASC or DESC"
+      });
+    }
+
+    // PAGINATION VALIDATION
+    const currentPage = Number(page);
+    const pageSize = Number(limit);
+
+    if (
+      !Number.isInteger(currentPage) ||
+      currentPage < 1 ||
+      !Number.isInteger(pageSize) ||
+      pageSize < 1 ||
+      pageSize > 50
+    ) {
+      return res.status(400).json({
+        message: "Invalid page or limit. Limit must be between 1 and 50."
+      });
+    }
+
+    const offset = (currentPage - 1) * pageSize;
+
+    // COUNT MATCHING PRODUCTS
+    const [countResult] = await db.query(
+      `SELECT COUNT(*) AS total
+       FROM products p
+       ${whereClause}`,
+      values
     );
 
-    res.status(200).json(products);
+    const totalProducts = Number(countResult[0].total);
+
+    // FETCH PRODUCTS
+    const [products] = await db.query(
+      `SELECT p.*
+       FROM products p
+       ${whereClause}
+       ORDER BY p.${sort_by} ${sortDirection}
+       LIMIT ? OFFSET ?`,
+      [...values, pageSize, offset]
+    );
+
+    res.status(200).json({
+      products,
+      pagination: {
+        currentPage,
+        pageSize,
+        totalProducts,
+        totalPages: Math.ceil(totalProducts / pageSize),
+        hasNextPage: currentPage * pageSize < totalProducts,
+        hasPreviousPage: currentPage > 1
+      }
+    });
 
   } catch (error) {
-    console.error(error);
+    console.error("Get products error:", error);
 
     res.status(500).json({
       message: "Error fetching products",
@@ -20,7 +173,9 @@ const getProducts = async (req, res) => {
 };
 
 
+// ==========================================
 // GET SINGLE PRODUCT BY ID
+// ==========================================
 const getProductById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -39,7 +194,7 @@ const getProductById = async (req, res) => {
     res.status(200).json(products[0]);
 
   } catch (error) {
-    console.error(error);
+    console.error("Get product error:", error);
 
     res.status(500).json({
       message: "Error fetching product",
@@ -49,7 +204,9 @@ const getProductById = async (req, res) => {
 };
 
 
+// ==========================================
 // CREATE NEW PRODUCT
+// ==========================================
 const createProduct = async (req, res) => {
   try {
     const {
@@ -63,7 +220,7 @@ const createProduct = async (req, res) => {
       stock
     } = req.body;
 
-    if (!category_id || !name || !team || !season || !price) {
+    if (!category_id || !name || !team || !season || price === undefined || price === null) {
       return res.status(400).json({
         message: "Please provide all required fields"
       });
@@ -71,17 +228,17 @@ const createProduct = async (req, res) => {
 
     const [result] = await db.query(
       `INSERT INTO products
-      (category_id, name, team, season, price, description, image_url, stock)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (category_id, name, team, season, price, description, image_url, stock)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         category_id,
         name,
         team,
         season,
         price,
-        description,
-        image_url,
-        stock || 0
+        description || null,
+        image_url || null,
+        stock ?? 0
       ]
     );
 
@@ -101,7 +258,9 @@ const createProduct = async (req, res) => {
 };
 
 
+// ==========================================
 // UPDATE PRODUCT
+// ==========================================
 const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
@@ -117,7 +276,6 @@ const updateProduct = async (req, res) => {
       stock
     } = req.body;
 
-    // Check if product exists
     const [existingProduct] = await db.query(
       "SELECT * FROM products WHERE id = ?",
       [id]
@@ -129,7 +287,6 @@ const updateProduct = async (req, res) => {
       });
     }
 
-    // Update product
     await db.query(
       `UPDATE products
        SET category_id = ?,
@@ -169,12 +326,13 @@ const updateProduct = async (req, res) => {
 };
 
 
+// ==========================================
 // DELETE PRODUCT
+// ==========================================
 const deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Check if product exists
     const [existingProduct] = await db.query(
       "SELECT * FROM products WHERE id = ?",
       [id]
@@ -186,7 +344,6 @@ const deleteProduct = async (req, res) => {
       });
     }
 
-    // Delete product
     await db.query(
       "DELETE FROM products WHERE id = ?",
       [id]
@@ -205,6 +362,7 @@ const deleteProduct = async (req, res) => {
     });
   }
 };
+
 
 module.exports = {
   getProducts,
