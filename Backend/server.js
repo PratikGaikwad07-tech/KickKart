@@ -10,6 +10,7 @@ const categoryRoutes = require("./routes/categoryRoutes");
 const cartRoutes = require("./routes/cartRoutes");
 const orderRoutes = require("./routes/orderRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+const wishlistRoutes = require("./routes/wishlistRoutes");
 
 const app = express();
 
@@ -58,6 +59,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/wishlist", wishlistRoutes);
 
 app.listen(PORT, () => {
     console.log(`KickKart API running on port ${PORT}`);
