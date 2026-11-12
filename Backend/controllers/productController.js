@@ -326,6 +326,47 @@ const updateProduct = async (req, res) => {
 };
 
 
+// GET AVAILABLE SIZES FOR A PRODUCT
+const getProductSizes = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check whether product exists
+    const [products] = await db.query(
+      "SELECT id FROM products WHERE id = ?",
+      [id]
+    );
+
+    if (products.length === 0) {
+      return res.status(404).json({
+        message: "Product not found"
+      });
+    }
+
+    // Fetch available sizes and stock
+    const [sizes] = await db.query(
+      `SELECT size, stock
+       FROM product_sizes
+       WHERE product_id = ?
+       ORDER BY FIELD(size, 'S', 'M', 'L', 'XL', 'XXL')`,
+      [id]
+    );
+
+    res.status(200).json({
+      productId: Number(id),
+      sizes
+    });
+
+  } catch (error) {
+    console.error("Get product sizes error:", error);
+
+    res.status(500).json({
+      message: "Error fetching product sizes",
+      error: error.message
+    });
+  }
+};
+
 // ==========================================
 // DELETE PRODUCT
 // ==========================================
@@ -367,6 +408,7 @@ const deleteProduct = async (req, res) => {
 module.exports = {
   getProducts,
   getProductById,
+  getProductSizes,
   createProduct,
   updateProduct,
   deleteProduct

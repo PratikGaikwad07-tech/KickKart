@@ -4,6 +4,7 @@ const router = express.Router();
 const {
   getProducts,
   getProductById,
+  getProductSizes,
   createProduct,
   updateProduct,
   deleteProduct
@@ -15,6 +16,9 @@ const roleMiddleware = require("../middleware/roleMiddleware");
 
 // GET ALL PRODUCTS - Public
 router.get("/", getProducts);
+
+// GET AVAILABLE SIZES - Public
+router.get("/:id/sizes", getProductSizes);
 
 
 // GET SINGLE PRODUCT - Public
